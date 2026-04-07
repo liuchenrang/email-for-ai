@@ -1,0 +1,38 @@
+# 默认配置模板
+# 数据库路径（默认存储在用户目录）
+database:
+  path: ~/.email/data.db
+
+# 日志配置
+log:
+  level: info
+  file: ~/.email/logs/email.log
+
+# 默认同步配置
+sync:
+  protocol: imap
+  limit: 100
+  interval: 5m
+
+# 邮件显示配置
+display:
+  format: table
+  date_format: "2006-01-02 15:04"
+  max_body_length: 500
+
+# 钩子配置 - 新邮件到达时执行自定义脚本
+hooks:
+  # 是否启用钩子
+  enabled: false
+  # 新邮件钩子命令（通过stdin接收JSON数据）
+  new_mail: ""
+  # 示例：
+  # new_mail: "cat >> ~/.email/new_mails.log"
+  # new_mail: "python3 ~/scripts/notify.py"
+  # new_mail: "curl -X POST -H 'Content-Type: application/json' -d @- http://localhost:8080/webhook"
+
+  # 阅读邮件钩子
+  read_mail: ""
+
+  # 发送邮件钩子
+  send_mail: ""

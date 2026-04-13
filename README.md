@@ -265,4 +265,4 @@ go build -o bin/email ./cmd/email
 
 # 清除本地数据
 sqlite3 ~/.email/data.db "DELETE FROM messages;"
-```
+```# email-for-ai

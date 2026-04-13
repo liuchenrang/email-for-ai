@@ -11,28 +11,20 @@ permissions:
 jobs:
   build:
     name: Build ${{ matrix.os }}-${{ matrix.arch }}
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
-          # Linux
           - os: linux
             arch: amd64
-            runner: ubuntu-latest
           - os: linux
             arch: arm64
-            runner: ubuntu-latest
-          # macOS
           - os: darwin
             arch: amd64
-            runner: macos-13  # Intel Mac
           - os: darwin
             arch: arm64
-            runner: macos-latest  # ARM Mac
-          # Windows
           - os: windows
             arch: amd64
-            runner: windows-latest
 
     steps:
       - name: Checkout

@@ -44,9 +44,80 @@ func (c *SMTPClient) Send(msg *email.Message) error {
 	// 构建邮件正文
 	emailContent := c.buildEmailContent(msg)
 
-	// 使用TLS连接发送
+	// 根据端口选择连接方式：
+	// - 465 端口：直接 TLS（SMTPS）
+	// - 587/25 端口：STARTTLS
 	addr := fmt.Sprintf("%s:%d", c.config.Host(), c.config.Port())
-	return c.sendWithTLS(addr, from, toEmails, emailContent)
+	if c.config.Port() == 465 {
+		return c.sendWithTLS(addr, from, toEmails, emailContent)
+	}
+	return c.sendWithSTARTTLS(addr, from, toEmails, emailContent)
+}
+
+// sendWithSTARTTLS 使用STARTTLS发送（适用于587/25端口）
+func (c *SMTPClient) sendWithSTARTTLS(addr string, from string, to []string, content string) error {
+	// 创建SMTP客户端（明文连接）
+	client, err := smtp.Dial(addr)
+	if err != nil {
+		return fmt.Errorf("连接SMTP服务器失败: %w", err)
+	}
+	defer client.Close()
+
+	// 发送EHLO
+	if err := client.Hello("localhost"); err != nil {
+		return fmt.Errorf("EHLO失败: %w", err)
+	}
+
+	// 检查服务器是否支持STARTTLS
+	ok, _ := client.Extension("STARTTLS")
+	if ok {
+		// 配置TLS
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: true, // 允许自签名证书
+			ServerName:         c.config.Host(),
+		}
+		// 升级到TLS连接
+		if err := client.StartTLS(tlsConfig); err != nil {
+			return fmt.Errorf("STARTTLS升级失败: %w", err)
+		}
+	}
+
+	// 认证
+	if c.config.HasAuth() {
+		auth := smtp.PlainAuth("", c.config.Username(), c.config.Password(), c.config.Host())
+		if err := client.Auth(auth); err != nil {
+			return fmt.Errorf("认证失败: %w", err)
+		}
+	}
+
+	// 设置发件人
+	if err := client.Mail(from); err != nil {
+		return fmt.Errorf("设置发件人失败: %w", err)
+	}
+
+	// 设置收件人
+	for _, recipient := range to {
+		if err := client.Rcpt(recipient); err != nil {
+			return fmt.Errorf("设置收件人失败 %s: %w", recipient, err)
+		}
+	}
+
+	// 发送正文
+	w, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("获取数据写入器失败: %w", err)
+	}
+
+	_, err = w.Write([]byte(content))
+	if err != nil {
+		return fmt.Errorf("写入内容失败: %w", err)
+	}
+
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("关闭写入器失败: %w", err)
+	}
+
+	return client.Quit()
 }
 
 // sendWithTLS 使用TLS发送（适用于465端口）

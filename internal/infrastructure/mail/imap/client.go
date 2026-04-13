@@ -13,6 +13,25 @@ import (
 	"github.com/emersion/go-imap/client"
 )
 
+// IDCommand IMAP ID命令 (RFC 2971)
+// 网易邮箱(163/126/188)要求发送此命令才能正常操作
+type IDCommand struct {
+	ID map[string]string
+}
+
+// Command 实现imap.Commander接口
+func (cmd *IDCommand) Command() *imaplib.Command {
+	var fields []interface{}
+	for k, v := range cmd.ID {
+		fields = append(fields, k, v)
+	}
+	// ID 命令参数需要作为单个列表传递: ID ("key" "value" ...)
+	return &imaplib.Command{
+		Name:      "ID",
+		Arguments: []interface{}{fields},
+	}
+}
+
 // IMAPClient IMAP邮件客户端
 type IMAPClient struct {
 	client *client.Client
@@ -46,12 +65,24 @@ func (c *IMAPClient) Connect() error {
 
 	c.client = cli
 
-	// 登录 - 使用用户名和授权码
-	username := c.config.Username()
-	if username == "" {
-		username = c.config.Username() // 使用邮箱作为用户名
+	// 发送ID命令（网易邮箱必需，RFC 2971）
+	// 必须在登录前发送，否则后续SELECT等操作会被拒绝
+	idCmd := &IDCommand{
+		ID: map[string]string{
+			"name":    "email-cli",
+			"version": "1.0",
+			"vendor":  "local",
+		},
+	}
+	if _, err := c.client.Execute(idCmd, nil); err != nil {
+		// ID命令失败不阻止登录，某些服务器可能不支持
+		// 但网易邮箱必须成功，所以记录警告但继续
+		fmt.Printf("警告: ID命令发送失败: %v\n", err)
 	}
 
+	// 登录 - 使用用户名和授权码
+	username := c.config.Username()
+	// 如果用户名为空，说明配置有问题，但继续尝试（可能会失败）
 	if err := c.client.Login(username, c.config.Password()); err != nil {
 		return fmt.Errorf("登录失败 (用户: %s): %w", username, err)
 	}
